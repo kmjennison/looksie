@@ -17,11 +17,89 @@
 
         <script src="../lib/webgazer.js"></script>
         <script>
+
 window.onload = function() {
+
+    var lookingOffscreen = false
+
+    // How likely the user is to be looking offscreen.
+    // Positive = more likely, negative = less likely.
+    var offscreenLikelihood = 0
+    var maxOffscreenLikelihood = 100
+    var minOffscreenLikelihood = -100
+    // The point we're confident the user is looking offscreen.
+    var offscreenLikelihoodThreshold = 60
+    // The point we're confident the user is looking at the screen.
+    var onscreenLikelihoodThreshold = -60
+    // How much we change the likelihood for each data point received.
+    var likelihoodIncrement = 10
+    var likelihoodDecrement = -5
+
+    function modifyOffscreenLikelihood(isOffscreen) {
+        if (isOffscreen) {
+            if (offscreenLikelihood + likelihoodIncrement > maxOffscreenLikelihood) {
+                offscreenLikelihood = maxOffscreenLikelihood
+            } else {
+                offscreenLikelihood = offscreenLikelihood + likelihoodIncrement
+            }
+        } else {
+            if (offscreenLikelihood + likelihoodDecrement < minOffscreenLikelihood) {
+                offscreenLikelihood = minOffscreenLikelihood
+            } else {
+                offscreenLikelihood = offscreenLikelihood + likelihoodDecrement
+            }
+        }
+    }
+
+    // Screen size, [width, height]
+    var screenDimensions = [1280, 800]
+    // Any padding around the screen that we should still
+    // consider to be "on screen".
+    var screenEdgeBufferPx = 0
+    var xOffscreenLeft = 0 - screenEdgeBufferPx
+    var yOffscreenTop = 0 - screenEdgeBufferPx
+    var xOffscreenRight = screenDimensions[0] + screenEdgeBufferPx
+    var yOffscreenBottom = screenDimensions[1] + screenEdgeBufferPx
+
+    // Returns a boolean, whether the data point is considered offscreen.
+    function isOffscreen(data) {
+        return (
+            data.x < xOffscreenLeft ||
+            data.x > xOffscreenRight ||
+            data.y < yOffscreenTop ||
+            data.y > yOffscreenBottom
+        )
+    }
+
+    function monitorLookingOffscreen (data) {
+        if (!data || !data.y || !data.x) {
+            return
+        }
+
+        // Modify how likely we think the user is looking offscreen.
+        var dataPtIsOffscreen = isOffscreen(data)
+        if (dataPtIsOffscreen) {
+            modifyOffscreenLikelihood(true)
+        } else {
+            modifyOffscreenLikelihood(false)
+        }
+
+        // Check if there's good likelihood the user has changed where they're looking.
+        if ((offscreenLikelihood > offscreenLikelihoodThreshold) && !lookingOffscreen) {
+            lookingOffscreen = true
+            console.log('Looking off screen!')
+        }
+        if ((offscreenLikelihood < onscreenLikelihoodThreshold) && lookingOffscreen) {
+            lookingOffscreen = false
+            console.log('Now back on screen.')
+        }
+    }
+
     webgazer.setRegression('ridge') /* currently must set regression and tracker */
         .setTracker('clmtrackr')
         .setGazeListener(function(data, clock) {
-           console.log(data); /* data is an object containing an x and y key which are the x and y prediction coordinates (no bounds limiting) */
+            monitorLookingOffscreen(data)
+         //   console.log(data); /* data is an object containing an x and y key which are the x and y prediction coordinates (no bounds limiting) */
          //   console.log(clock); /* elapsed time in milliseconds since webgazer.begin() was called */
         })
         .begin()
@@ -71,7 +149,7 @@ window.onload = function() {
     setTimeout(checkIfReady,100);
 };
 window.onbeforeunload = function() {
-    //webgazer.end(); //Uncomment if you want to save the data even if you reload the page.
+    // webgazer.end(); //Uncomment if you want to save the data even if you reload the page.
     window.localStorage.clear(); //Comment out if you want to save data across different sessions 
 }
         </script>
